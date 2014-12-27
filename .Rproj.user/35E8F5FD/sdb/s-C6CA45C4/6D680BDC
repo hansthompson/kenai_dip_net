@@ -1,0 +1,17 @@
+{
+    "contents" : "library(lubridate)\nlibrary(ggplot2)\nlibrary(tidyr)\n\ntest_fish <- read.csv(\"data/offshore_test_fish.csv\")\n\ntest_fish$Year <- paste0(ifelse(nchar(test_fish$Year) == 1, \"0\", \"\"), test_fish$Year)\n\ntest_fish$Year <- paste0(ifelse(test_fish$Year < 15, 20, 19), test_fish$Year)\n\ntest_fish$date <- ymd(paste(test_fish$Year, test_fish$Month, test_fish$Day))\n\ntest_fish <- data.frame(date = test_fish$date, station = test_fish$Station, catch = test_fish$Catch, index = test_fish$Index, year = test_fish$Year)\ntest_fish$year <- as.numeric(as.character(test_fish$year))\ntest_fish$index <- as.numeric(as.character(test_fish$index))\ntest_fish$station <- as.factor(as.numeric(as.character(test_fish$station)))\n\nsave(test_fish, file = \"data/test_fish.rda\")\n\ntest_fish<- test_fish[!test_fish$index >= 400,]\ntest_fish <-test_fish[!test_fish$station == \".\",]\n     \nyear(test_fish$date) <- 2013\n\nggplot(data = test_fish, aes(x = date,  y = index, fill = station)) + geom_bar(stat = \"identity\") +\n    facet_wrap(~ year) \n\nyear(test_fish$date) <- test_fish$year\n\n\np_values <- data.frame(days_lagged = numeric(), model_type = numeric(), intercept = numeric(), parameter = numeric())\nplot_list_obj <- list()\n\n\nfor(i in 0:20) {\n    plotting_obj <- inner_join(test_fish, sonar, by = \"date\")\n    plot_list_obj[1+1] <- ggplot( data = plotting_obj, aes(x = log(n), y = index, color)) + geom_point() +\n                                facet_wrap( ~ station) + labs(title = paste(\"Staggered\", i, \"Days\"), \n                                                              x = \"Offshore Catch Index\", \n                                                              y = \"Sonar Count\") \n    p_values[i+1,] <- c(i,\"log\",summary(lm(plotting_obj$index ~ log(plotting_obj$n)))$coefficients[,4])\n    \n    day(test_fish$date) <- day(test_fish$date) + 1 \n}\n\n\np_values <- gather(p_values, days_lagged, model_type)\ncolnames(p_values)[3] <- \"value\"\ncolnames(p_values)[4] <- \"p\"\np_values$p <- as.numeric(p_values$p)\np_values$days_lagged <- as.numeric(p_values$days_lagged)\n\n\nggplot(data = p_values, aes(y = -log(p), x = days_lagged)) + geom_bar(stat = \"identity\") +\n    facet_wrap( ~ value) + \n    labs(title = \"Negative Log Of Parameter P-Values\", \n         x = \"Days Lagged Of Offshore Test Fishing\", \n         y = \"-log(p value)\")\n\n\n",
+    "created" : 1419620397141.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3897521594",
+    "id" : "6D680BDC",
+    "lastKnownWriteTime" : 1419638694,
+    "path" : "C:/Users/chthompson/Desktop/kenai_dip_net/combine testfish and sonar.R",
+    "project_path" : "combine testfish and sonar.R",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "source_on_save" : false,
+    "type" : "r_source"
+}
