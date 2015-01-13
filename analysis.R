@@ -27,7 +27,11 @@ test_fish <-test_fish[!is.na(test_fish$year),]
 
 year(test_fish$date) <- 2013
 
-ggplot(data = test_fish, aes(x = date,  y = index, fill = station)) + geom_bar(stat = "identity") +
+test_fish_bar <- test_fish %>%
+    group_by(date, station) %>%
+    summarize(index = sum(index))
+
+ggplot(data = test_fish_bar, aes(x = date,  y = index, fill = station)) + geom_bar(stat = "identity") #+
     facet_wrap(~ year) 
 
 year(test_fish$date) <- test_fish$year
@@ -122,7 +126,7 @@ p_values <- data.frame(days_lagged = numeric(), model_type = numeric(), intercep
 plot_list_obj <- list()
 
 
-for(i in 0:50) {
+for(i in 0:15) {
     plotting_obj <- inner_join(test_fish, sonar, by = "date")
     plot_list_obj[[i+1]] <- ggplot( data = plotting_obj, aes(x = log(n), y = index, color)) + geom_point() +
         facet_wrap( ~ station) + labs(title = paste("Staggered", i, "Days"), 
@@ -143,6 +147,6 @@ p_values$days_lagged <- as.numeric(p_values$days_lagged)
 
 ggplot(data = p_values, aes(y = -log(p), x = days_lagged)) + geom_bar(stat = "identity") +
     facet_wrap( ~ value) + 
-    labs(title = "Negative Log Of Parameter P-Values", 
+    labs(title = "Negative Log Of Log Model P-Values", 
          x = "Days Lagged Of Offshore Test Fishing", 
          y = "-log(p value)")
