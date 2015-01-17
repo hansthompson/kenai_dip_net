@@ -8,6 +8,8 @@ load("data/harvest_survey.rda")
 load("data/sonar.rda")
 load("data/test_fish.rda")
 
+
+
 year(harvest_survey$date) <- 2013
 
 limits <- aes(ymax = harvest_survey$Mean + harvest_survey$SE, 
@@ -31,7 +33,9 @@ test_fish_bar <- test_fish %>%
     group_by(date, station) %>%
     summarize(index = sum(index))
 
-ggplot(data = test_fish_bar, aes(x = date,  y = index, fill = station)) + geom_bar(stat = "identity") #+
+ggplot(data = test_fish_bar, 
+       aes(x = date,  y = index, fill = station)) + 
+    geom_bar(stat = "identity") #+
     facet_wrap(~ year) 
 
 year(test_fish$date) <- test_fish$year
@@ -45,7 +49,6 @@ ggplot(data = sonar, aes(x = date, y = n)) + geom_line(stat = "identity", fill =
          y = "Sockeye Counted") 
 
 year(sonar$date) <- sonar$year
-
 
 harv_surv_tmp <- harvest_survey
 
@@ -150,3 +153,32 @@ ggplot(data = p_values, aes(y = -log(p), x = days_lagged)) + geom_bar(stat = "id
     labs(title = "Negative Log Of Log Model P-Values", 
          x = "Days Lagged Of Offshore Test Fishing", 
          y = "-log(p value)")
+
+
+test_fish_tmp <- test_fish
+day(test_fish_tmp$date) <- day(test_fish_tmp$date) + 8
+test_fish_to_sonar <- inner_join(filter(test_fish_tmp, as.numeric(station) >= 4, as.numeric(station) <= 9),
+                                 sonar,
+                                 by = "date")
+
+ggplot(data = test_fish_to_sonar,
+       aes(x = index, y = log(n))) + 
+    geom_point() + 
+    facet_wrap( ~ station) +geom_smooth(method = "lm", formula = "y ~ log(x)")
+
+
+test_fish_tmp$week <- week(test_fish_tmp$date)
+sonar$week <- week(sonar$date)
+test_fish_to_sonar <- inner_join(filter(test_fish_tmp, as.numeric(station) >= 4, as.numeric(station) <= 9, index != 0),
+                                 sonar,
+                                 by = c("week", "year"))
+
+test_fish_to_sonar_by_week <- test_fish_to_sonar %>%
+    group_by(week, station, year) %>%
+    summarize(index = sum(index),n = sum(n))
+       
+ggplot(data = test_fish_to_sonar_by_week,
+       aes(x = index, y = n)) + 
+    geom_point() + 
+    facet_wrap( ~ station) + 
+    geom_smooth(method = "lm", formula = "y ~ log(x)")
