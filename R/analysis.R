@@ -3,12 +3,11 @@ library(lubridate)
 library(dplyr)
 library(tidyr)
 library(scales)
-library(animation)
 source("R/multiplot.r")
 load("data/harvest_survey.rda")
 load("data/sonar.rda")
 load("data/test_fish.rda")
-load("data/comm_catch.rda")
+
 
 
 year(harvest_survey$date) <- 2013
@@ -155,97 +154,31 @@ ggplot(data = p_values, aes(y = -log(p), x = days_lagged)) + geom_bar(stat = "id
          x = "Days Lagged Of Offshore Test Fishing", 
          y = "-log(p value)")
 
-#Add eight days forward in time to the test_fish in a temporary object
+
 test_fish_tmp <- test_fish
 day(test_fish_tmp$date) <- day(test_fish_tmp$date) + 8
 test_fish_to_sonar <- inner_join(filter(test_fish_tmp, as.numeric(station) >= 4, as.numeric(station) <= 9),
                                  sonar,
                                  by = "date")
 
-#Look at coorelation between test fishery and sonar count.  Not very informative. I think genetics would 
-#really improve this as I can't account for how many sockeye in the test fishery are not going to the Kenai river.
 ggplot(data = test_fish_to_sonar,
-       aes(x = index, y = log(n), color = station)) + 
+       aes(x = index, y = log(n))) + 
     geom_point() + 
-    geom_smooth(method = "lm", formula = "y ~ log(x)") + 
-    labs(title = "Daily counts of sonar and test fishery lagged eight days",
-         y = "log(Sonar Count)",
-         x = "Test Fishery Count")
-
-ggplot(data = filter(test_fish_to_sonar, index > 50),
-       aes(x = index, y = log(n), color = station)) + 
-    geom_point() + 
-    geom_smooth(method = "lm", formula = "y ~ log(x)") + 
-    labs(title = "Daily counts of sonar and test fishery lagged eight days and over 50 fish per station.",
-         y = "log(Sonar Count)",
-         x = "Test Fishery Count")
+    facet_wrap( ~ station) +geom_smooth(method = "lm", formula = "y ~ log(x)")
 
 
-#Try to group test fish numbers by week to get bigger numbers. 
 test_fish_tmp$week <- week(test_fish_tmp$date)
 sonar$week <- week(sonar$date)
 test_fish_to_sonar <- inner_join(filter(test_fish_tmp, as.numeric(station) >= 4, as.numeric(station) <= 9, index != 0),
                                  sonar,
                                  by = c("week", "year"))
+
 test_fish_to_sonar_by_week <- test_fish_to_sonar %>%
     group_by(week, station, year) %>%
     summarize(index = sum(index),n = sum(n))
+       
 ggplot(data = test_fish_to_sonar_by_week,
        aes(x = index, y = n)) + 
     geom_point() + 
     facet_wrap( ~ station) + 
-    geom_smooth(method = "lm", formula = "y ~ log(x)") + 
-    labs(title = "Weekly Groupings")
-#Give up on that and start using the original test fishery object. 
-
-#Try to find teh stagger by stat code for the commerical harverst. Not very sucessful.  
-#Assume (big one) that is a one day lag from Ninilchik  
-comm_catch_temp <- comm_catch
-comm_catch_temp$date <- comm_catch_temp$date + days(1)
-comm_and_sonar <- inner_join(na.omit(filter(comm_catch, stat_code == 24421)), sonar, by = "date")
-#Some semplence of a pattern?
-ggplot(data = comm_and_sonar, aes(x = sockeye, y = n)) + geom_point()
-
-
-#Comm_catch and sonar coorelation. I can't find very good coorelation between commercial catch and sonar by stat code with
-#any staggering but maybe I can come back and look again. 
-#Spread out by stat code. 
-comm_catch_spread <- spread(comm_catch, stat_code, sockeye)
-p_values <- data.frame(days_lagged = numeric(), model_type = numeric(), intercept = numeric(), parameter = numeric())
-plot_list_obj <- list()
-
-#Try to find the right stagger for each stat code
-comm_catch_tmp <- comm_catch
-day(comm_catch_tmp$date) <- day(comm_catch_tmp$date) - 10
-for(i in 0:25) {
-    plotting_obj <- inner_join(comm_catch_tmp, sonar, by = "date")
-    plot_list_obj[[i+1]] <- ggplot(data = plotting_obj, aes(x = sockeye, y = log(n), color = factor(stat_code))) + geom_point() +
-        #geom_smooth(method = "lm") +
-        labs(title = paste("Staggered", i - 10, "Days - Daily Counts"), 
-                                      x = "Commericial Catch", 
-                                      y = "log(Sonar Count)") 
-    #Not working and probably not very insightful. 
-    #p_values[i+1,] <- c(i,"log",summary(lm(plotting_obj$n  ~ plotting_obj$`24421` + plotting_obj$`24422` + 
-    #                                                         plotting_obj$`24422` + plotting_obj$`24431` + 
-    #                                                         plotting_obj$`24432` + plotting_obj$`24441` + 
-    #                                                         plotting_obj$`24442` + plotting_obj$`24450` + 
-    #                                                         plotting_obj$`24450` + plotting_obj$`24451` +
-    #                                                         plotting_obj$`24460` + plotting_obj$`24461` + 
-    #                                                         plotting_obj$`24470`))$coefficients[,4])
-    
-    day(comm_catch_tmp$date) <- day(comm_catch_tmp$date) + 1 
-}
-#The resulting object shows all plots but is not very interesting
-#plot_list_obj
-
-#p_values <- gather(p_values, days_lagged, model_type)
-#colnames(p_values)[3] <- "value"
-#colnames(p_values)[4] <- "p"
-#p_values$p <- as.numeric(p_values$p)
-#p_values$days_lagged <- as.numeric(p_values$days_lagged)
-#ggplot(data = p_values, aes(y = -log(p), x = days_lagged)) + geom_bar(stat = "identity") +
-#    facet_wrap( ~ value) + 
-#    labs(title = "Negative Log Of Log Model P-Values", 
-#         x = "Days Lagged Of Offshore Test Fishing", 
-#         y = "-log(p value)")
-
+    geom_smooth(method = "lm", formula = "y ~ log(x)")

@@ -1,3 +1,24 @@
+---
+title: "Modeling The Kenai River Dip Net Fishery"
+author: "Charles Hans Thompson"
+date: "Tuesday, March 03, 2015"
+output: html_document
+---
+
+ I would like to develop a model to predict the catchable sockeye at the mouth of the kenai River.  I’m trying to do this currently using three data sources.
+
+- Cook Inlet Test Fish data going back to 1979
+- The personal use harvest survey data that is available to me going back to 2006.
+- The sonar count data on the Kenai river 19 miles up river going back to 1979. 
+
+I’ve configured this data from excel spreadsheets into tidy R data frames and made them available with the analysis.R file for producing the graphics here on github, a code repository website. The code is at https://github.com/hansthompson/kenai_dip_net.
+
+I’m trying to model this data because I am enamored with the personal use fishery at the mouth of the Kenai river.  It brings in families from the diversity cultures and classes of people from south central Alaska, provides ample salmon for the year to those that don’t have the time or training to go sport fishing, and allows many Alaskans to have a buy in for the cause of sustainable management of salmon.   I’ve been going the past three years and it is a striking site of humanity. 
+
+I’ll now try break down the data for you.  I don’t really have a good plan to move beyond where I am now. 
+
+
+```{r, include = FALSE}
 library(ggplot2)
 library(lubridate)
 library(dplyr)
@@ -9,19 +30,30 @@ load("data/harvest_survey.rda")
 load("data/sonar.rda")
 load("data/test_fish.rda")
 load("data/comm_catch.rda")
+```
 
+You can also embed plots, for example:
 
+```{r, include=FALSE}
 year(harvest_survey$date) <- 2013
 
 limits <- aes(ymax = harvest_survey$Mean + harvest_survey$SE, 
               ymin = harvest_survey$Mean - harvest_survey$SE)
+```
 
+
+```{r, echo = FALSE}
+#show the harvest survey distributions by year
 ggplot(data = harvest_survey, aes(x = date, y = Mean)) + geom_point(stat= "identity", fill = "white", color = "black") + geom_line() +
     geom_errorbar(limits,  color = "red") +  facet_wrap(~ year) +
     labs(title = "Harvest Survey Results Across Years", 
          x = "Date", 
          y = "Mean") 
+```
 
+These are the harvest survey results from 2006-2013.  The y axis is the estimated mean catch for the day for personal use dip net fishers with standard error bars. This data was provided to me from a personal request on the fishery. There is a big hole in 2006 but I’ve included it for formality. 
+
+```{r, include = FALSE}
 year(harvest_survey$date) <- harvest_survey$year
 
 test_fish<- test_fish[!test_fish$index >= 400,]
@@ -33,28 +65,52 @@ year(test_fish$date) <- 2013
 test_fish_bar <- test_fish %>%
     group_by(date, station) %>%
     summarize(index = sum(index))
+```
 
+
+
+```{r, echo=FALSE}
+#show prior test fishery distribution
 ggplot(data = test_fish_bar, 
        aes(x = date,  y = index, fill = station)) + 
-    geom_bar(stat = "identity") #+
-    facet_wrap(~ year) 
+    geom_bar(stat = "identity") #+ facet_wrap(~ year) 
+```
 
+The prior distribution of sockeye caught at different test stations between Red River Delta and Anchor point in Cook Inlet by date from years 1979 to 2014.  Not all stations are accounted for in the map below. 
+
+```{r, include = FALSE}
 year(test_fish$date) <- test_fish$year
 
 year(sonar$date) <- 2013
+```
 
+
+```{r, echo=FALSE}
 ggplot(data = sonar, aes(x = date, y = n)) + geom_line(stat = "identity", fill = "white", color = "black") +
     facet_wrap(~ year) +
     labs(title = "Sonar Count Results Across Years", 
          x = "Date", 
-         y = "Sockeye Counted") 
+         y = "Sockeye Counted") +
+    theme(axis.text.x=element_blank(),
+          axis.ticks.x=element_blank())
+```
 
+These are the distributions of prior year sonar returns at the 19 mile upriver sonar station. The start and end dates for the season are different across years but the season runs from early July to the middle of August. 
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+multiplot(p0, p1, p2, p3, p4, cols=3)
+```
+
+I’ve tried to how long it takes for the sockeye to reach the sonar station from the mouth of the river by plotting the mean catch at the river mouth by the day with the sonar count by the day and staggering by each day. It looks like by staggering the mean catch at the mouth by one day provides the best correlation to sonar count. In the next graphic I look at the negative log of the p-value for linear and log models for each of the staggering options. 
+
+
+```{r, include = FALSE}
 year(sonar$date) <- sonar$year
 
 harv_surv_tmp <- harvest_survey
 
 p_values <- data.frame(days_lagged = numeric(), model_type = numeric(), intercept = numeric(), parameter = numeric())
-
 ## NO STAGGER
 p0<- ggplot(data = inner_join(sonar, harv_surv_tmp, by = "date"), aes(x = n, y = Mean)) + geom_point() +
     labs(title = "No Staggering", 
@@ -115,21 +171,21 @@ p_values <- gather(p_values, days_lagged, model_type)
 colnames(p_values)[3] <- "value"
 colnames(p_values)[4] <- "p"
 p_values$p <- as.numeric(p_values$p)
+```
 
+```{r, echo = FALSE}
 ggplot(data = p_values, aes(y = -log(p), x = days_lagged)) + geom_bar(stat = "identity") +
     facet_wrap(value ~ model_type) + 
     labs(title = "Negative Log Of Parameter P-Values", 
          x = "Days Lagged Of Harvest Survey", 
          y = "-log(p value)")
-
-multiplot(p0, p1, p2, p3, p4, cols=3)
-
+```
 
 
-p_values <- data.frame(days_lagged = numeric(), model_type = numeric(), intercept = numeric(), parameter = numeric())
-plot_list_obj <- list()
 
+It looks like the log based regression where there is one day of staggering has the best fit. 
 
+```{r, include = FALSE}
 for(i in 0:15) {
     plotting_obj <- inner_join(test_fish, sonar, by = "date")
     plot_list_obj[[i+1]] <- ggplot( data = plotting_obj, aes(x = log(n), y = index, color)) + geom_point() +
@@ -140,21 +196,25 @@ for(i in 0:15) {
     
     day(test_fish$date) <- day(test_fish$date) + 1 
 }
-
-
 p_values <- gather(p_values, days_lagged, model_type)
 colnames(p_values)[3] <- "value"
 colnames(p_values)[4] <- "p"
 p_values$p <- as.numeric(p_values$p)
 p_values$days_lagged <- as.numeric(p_values$days_lagged)
 
-
+```
+```{r, echo=FALSE, warning=FALSE}
 ggplot(data = p_values, aes(y = -log(p), x = days_lagged)) + geom_bar(stat = "identity") +
     facet_wrap( ~ value) + 
     labs(title = "Negative Log Of Log Model P-Values", 
          x = "Days Lagged Of Offshore Test Fishing", 
          y = "-log(p value)")
 
+```
+
+I then tried to do the same thing to find a correlation in a log transformed regression model between the total catch per day in the test fishery against the sonar count across all years. Both data sets go from 1979-2014. The best staggering seems to be an eight day total to predict when they will reach the sonar from the test fish site.  A big problem that I think I have is accounting for the days in the test fishery when very few or no fish are caught but I have sonar counts that fit the prior distribution alright. I don’t know how to compromise between those discrepancies when trying to forecast what the run will look like a few days out.  I’ve tried grouping the data by week in an attempt to create some correlation but even that isn’t very helpful. The scatter plots below show what I’m trying to describe. 
+
+```{r, include = FALSE}
 #Add eight days forward in time to the test_fish in a temporary object
 test_fish_tmp <- test_fish
 day(test_fish_tmp$date) <- day(test_fish_tmp$date) + 8
@@ -162,6 +222,11 @@ test_fish_to_sonar <- inner_join(filter(test_fish_tmp, as.numeric(station) >= 4,
                                  sonar,
                                  by = "date")
 
+```
+
+
+
+```{r, echo=FALSE}
 #Look at coorelation between test fishery and sonar count.  Not very informative. I think genetics would 
 #really improve this as I can't account for how many sockeye in the test fishery are not going to the Kenai river.
 ggplot(data = test_fish_to_sonar,
@@ -171,7 +236,6 @@ ggplot(data = test_fish_to_sonar,
     labs(title = "Daily counts of sonar and test fishery lagged eight days",
          y = "log(Sonar Count)",
          x = "Test Fishery Count")
-
 ggplot(data = filter(test_fish_to_sonar, index > 50),
        aes(x = index, y = log(n), color = station)) + 
     geom_point() + 
@@ -180,7 +244,10 @@ ggplot(data = filter(test_fish_to_sonar, index > 50),
          y = "log(Sonar Count)",
          x = "Test Fishery Count")
 
+```
 
+
+```{r, include = FALSE}
 #Try to group test fish numbers by week to get bigger numbers. 
 test_fish_tmp$week <- week(test_fish_tmp$date)
 sonar$week <- week(sonar$date)
@@ -190,30 +257,37 @@ test_fish_to_sonar <- inner_join(filter(test_fish_tmp, as.numeric(station) >= 4,
 test_fish_to_sonar_by_week <- test_fish_to_sonar %>%
     group_by(week, station, year) %>%
     summarize(index = sum(index),n = sum(n))
+```
+
+
+```{r, echo=FALSE}
 ggplot(data = test_fish_to_sonar_by_week,
        aes(x = index, y = n)) + 
     geom_point() + 
     facet_wrap( ~ station) + 
     geom_smooth(method = "lm", formula = "y ~ log(x)") + 
     labs(title = "Weekly Groupings")
-#Give up on that and start using the original test fishery object. 
+#Give up on that and start using the original test fishery object.
+```
 
+
+
+```{r, include = FALSE}
 #Try to find teh stagger by stat code for the commerical harverst. Not very sucessful.  
 #Assume (big one) that is a one day lag from Ninilchik  
 comm_catch_temp <- comm_catch
 comm_catch_temp$date <- comm_catch_temp$date + days(1)
 comm_and_sonar <- inner_join(na.omit(filter(comm_catch, stat_code == 24421)), sonar, by = "date")
 #Some semplence of a pattern?
+```
+
+
+```{r, echo=FALSE}
 ggplot(data = comm_and_sonar, aes(x = sockeye, y = n)) + geom_point()
+```
 
 
-#Comm_catch and sonar coorelation. I can't find very good coorelation between commercial catch and sonar by stat code with
-#any staggering but maybe I can come back and look again. 
-#Spread out by stat code. 
-comm_catch_spread <- spread(comm_catch, stat_code, sockeye)
-p_values <- data.frame(days_lagged = numeric(), model_type = numeric(), intercept = numeric(), parameter = numeric())
-plot_list_obj <- list()
-
+```{r, include = FALSE}
 #Try to find the right stagger for each stat code
 comm_catch_tmp <- comm_catch
 day(comm_catch_tmp$date) <- day(comm_catch_tmp$date) - 10
@@ -248,4 +322,4 @@ for(i in 0:25) {
 #    labs(title = "Negative Log Of Log Model P-Values", 
 #         x = "Days Lagged Of Offshore Test Fishing", 
 #         y = "-log(p value)")
-
+```
